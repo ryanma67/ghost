@@ -1,0 +1,951 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>THE SEALED GATE</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Creepster&family=VT323&display=swap');
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#000; display:flex; justify-content:center; align-items:center; height:100vh; overflow:hidden; font-family:'VT323',monospace; cursor:crosshair; }
+#wrapper { position:relative; width:800px; height:600px; }
+canvas { display:block; }
+
+/* Main menu overlay */
+#ui { position:absolute; top:0; left:0; width:100%; height:100%; display:flex; flex-direction:column; justify-content:center; align-items:center; background:rgba(0,0,0,0.93); z-index:10; }
+#ui.hidden { display:none; }
+#ui h1 { font-family:'Creepster',cursive; font-size:72px; color:#cc0000; text-shadow:0 0 20px #ff0000,0 0 60px #880000; animation:flicker 4s infinite; margin-bottom:6px; }
+.subtitle { color:#440000; font-size:18px; letter-spacing:6px; margin-bottom:28px; }
+.story { color:#882222; font-size:17px; text-align:center; max-width:480px; margin-bottom:24px; line-height:2; }
+.controls { color:#444; font-size:15px; margin-bottom:32px; text-align:center; line-height:2.2; }
+.btn { padding:13px 50px; background:transparent; color:#cc0000; border:2px solid #660000; cursor:pointer; font-size:26px; font-family:'VT323',monospace; letter-spacing:4px; box-shadow:0 0 20px #33000080; transition:all 0.2s; }
+.btn:hover { background:#cc0000; color:#000; box-shadow:0 0 40px #ff0000; }
+.btn-green { color:#00cc44; border-color:#006622; }
+.btn-green:hover { background:#00cc44; color:#000; box-shadow:0 0 40px #00ff44; }
+
+/* Restart button overlay */
+#restart-overlay {
+  position:absolute; bottom:30px; left:50%; transform:translateX(-50%);
+  z-index:20; display:none; flex-direction:column; align-items:center; gap:12px;
+}
+#restart-overlay .restart-btn {
+  padding:12px 44px; background:transparent; border:2px solid #880000;
+  color:#ff2200; font-size:24px; font-family:'VT323',monospace; letter-spacing:4px;
+  cursor:pointer; box-shadow:0 0 18px #33000080; transition:all 0.2s;
+  animation:pulse-btn 2s infinite;
+}
+#restart-overlay .restart-btn:hover { background:#cc0000; color:#000; box-shadow:0 0 40px #ff0000; }
+#restart-overlay .restart-btn.green { border-color:#006622; color:#00cc44; animation:pulse-btn-green 2s infinite; }
+#restart-overlay .restart-btn.green:hover { background:#00cc44; color:#000; box-shadow:0 0 40px #00ff44; }
+
+@keyframes pulse-btn {
+  0%,100%{box-shadow:0 0 18px #55000080;}
+  50%{box-shadow:0 0 36px #ff000060;}
+}
+@keyframes pulse-btn-green {
+  0%,100%{box-shadow:0 0 18px #00330080;}
+  50%{box-shadow:0 0 36px #00ff4460;}
+}
+
+/* HUD */
+#hud { position:absolute; bottom:0; left:0; width:100%; padding:8px 14px; display:none; align-items:center; gap:14px; background:linear-gradient(transparent,rgba(0,0,0,0.9)); pointer-events:none; z-index:5; }
+.bar-label { color:#555; font-size:15px; min-width:62px; }
+.bar-bg { height:7px; background:#0a0a0a; border:1px solid #222; width:110px; }
+.bar-fill { height:100%; transition:width 0.15s; }
+#sbar { background:#00cccc; box-shadow:0 0 6px #00cccc80; }
+#hbar { background:#cc1133; box-shadow:0 0 6px #cc113380; }
+#nbar { background:#8800cc; box-shadow:0 0 6px #8800cc80; }
+#phase-hud { color:#ff6600; font-size:20px; margin-left:auto; }
+#timer-hud { color:#ff2200; font-size:22px; }
+
+/* Warning text */
+#warn-hud { position:absolute; top:16px; left:0; width:100%; text-align:center; font-size:26px; color:#ff0000; pointer-events:none; z-index:6; text-shadow:0 0 10px #ff0000; }
+
+/* Dialogue box - bottom of canvas */
+#dlg { position:absolute; bottom:52px; left:16px; right:16px; background:rgba(0,0,0,0.92); border:1px solid #440000; padding:14px 18px; z-index:9; display:none; box-shadow:0 0 20px #33000060; }
+#dlg-speaker { font-size:17px; margin-bottom:5px; letter-spacing:2px; }
+#dlg-body { font-size:21px; color:#ccaaaa; line-height:1.5; min-height:44px; }
+#dlg-hint { font-size:13px; color:#440000; text-align:right; margin-top:5px; animation:blink 1s infinite; }
+
+/* End screen overlay on canvas */
+#end-screen {
+  position:absolute; top:0; left:0; width:100%; height:100%;
+  display:none; flex-direction:column; justify-content:center; align-items:center;
+  background:rgba(0,0,0,0.88); z-index:15;
+}
+#end-screen h2 {
+  font-family:'Creepster',cursive; font-size:70px;
+  text-shadow:0 0 30px currentColor; margin-bottom:10px; animation:flicker 3s infinite;
+}
+#end-screen .end-sub { font-size:20px; letter-spacing:5px; margin-bottom:18px; }
+#end-screen .end-msg { font-size:16px; max-width:400px; text-align:center; margin-bottom:36px; line-height:2; }
+#end-screen .end-btn {
+  padding:14px 55px; background:transparent; font-size:28px;
+  font-family:'VT323',monospace; letter-spacing:5px; cursor:pointer;
+  transition:all 0.2s; margin-top:4px;
+}
+
+@keyframes blink { 0%,100%{opacity:1;} 50%{opacity:0.15;} }
+@keyframes flicker { 0%,94%,100%{opacity:1;} 95%{opacity:0.2;} 96%{opacity:0.9;} 97%{opacity:0.4;} 98%{opacity:1;} }
+</style>
+</head>
+<body>
+<div id="wrapper">
+  <canvas id="gameCanvas" width="800" height="600"></canvas>
+
+  <div id="ui">
+    <h1>THE SEALED GATE</h1>
+    <div class="subtitle">— SURVIVAL HORROR —</div>
+    <div class="story">
+      You entered Chamber 13 to retrieve the artifact.<br>
+      The others never came back.<br>
+      Something is sealed in here with you.<br><br>
+      <span style="color:#ff2200">Survive 90 seconds. Reach the exit.</span>
+    </div>
+    <div class="controls">
+      WASD / ARROWS — Move &nbsp;|&nbsp; SPACE — Sprint<br>
+      Press SPACE to skip dialogue lines.
+    </div>
+    <button class="btn" onclick="startGame()">ENTER THE CHAMBER</button>
+  </div>
+
+  <!-- End screen overlay (DEAD or WIN) -->
+  <div id="end-screen">
+    <h2 id="end-title"></h2>
+    <div class="end-sub" id="end-sub"></div>
+    <div class="end-msg" id="end-msg"></div>
+    <button class="end-btn" id="end-btn" onclick="restartGame()">⟳ Restart</button>
+  </div>
+
+  <div id="hud">
+    <span class="bar-label">STAMINA</span><div class="bar-bg"><div class="bar-fill" id="sbar" style="width:100%"></div></div>
+    <span class="bar-label">HEALTH</span><div class="bar-bg"><div class="bar-fill" id="hbar" style="width:100%"></div></div>
+    <span class="bar-label">SANITY</span><div class="bar-bg"><div class="bar-fill" id="nbar" style="width:100%"></div></div>
+    <span id="phase-hud">PHASE 1</span>
+    <span id="timer-hud">0:00</span>
+  </div>
+
+  <div id="warn-hud"></div>
+
+  <div id="dlg">
+    <div id="dlg-speaker"></div>
+    <div id="dlg-body"></div>
+    <div id="dlg-hint">[ SPACE ] to continue</div>
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────────
+//  CANVAS + DOM
+// ─────────────────────────────────────────────────
+const canvas  = document.getElementById("gameCanvas");
+const ctx     = canvas.getContext("2d");
+const uiEl    = document.getElementById("ui");
+const hudEl   = document.getElementById("hud");
+const warnEl  = document.getElementById("warn-hud");
+const dlgEl   = document.getElementById("dlg");
+const dlgSpk  = document.getElementById("dlg-speaker");
+const dlgBod  = document.getElementById("dlg-body");
+const endScreen = document.getElementById("end-screen");
+const endTitle  = document.getElementById("end-title");
+const endSub    = document.getElementById("end-sub");
+const endMsg    = document.getElementById("end-msg");
+const endBtn    = document.getElementById("end-btn");
+
+// ─────────────────────────────────────────────────
+//  STATE
+// ─────────────────────────────────────────────────
+let state = "MENU";
+
+let player, tank, ghost, bullets, bombs, particles, blood, tendrils;
+let keys = {};
+let justPressed = {};
+
+let gameTime = 0;
+let stamina = 300, health = 100, sanity = 100, phase = 1;
+let shake = 0, redFlash = 0, warnTimer = 0;
+let introDist = 0;
+let corridorDist = 0;
+let finalTimer = 0;
+let ghostChaseX = 400;
+let door;
+
+// ─────────────────────────────────────────────────
+//  INPUT
+// ─────────────────────────────────────────────────
+window.addEventListener("keydown", function(e) {
+  if (!keys[e.code]) justPressed[e.code] = true;
+  keys[e.code] = true;
+  e.preventDefault();
+});
+window.addEventListener("keyup", function(e) {
+  keys[e.code] = false;
+});
+
+function consumeJust(code) {
+  if (justPressed[code]) { justPressed[code] = false; return true; }
+  return false;
+}
+
+// ─────────────────────────────────────────────────
+//  AUDIO
+// ─────────────────────────────────────────────────
+let AC = null;
+function initAC() { if (!AC) AC = new (window.AudioContext||window.webkitAudioContext)(); }
+function tone(freq,type,dur,vol) {
+  if(!AC) return; vol=vol||0.07;
+  let o=AC.createOscillator(), g=AC.createGain();
+  o.connect(g); g.connect(AC.destination);
+  o.type=type; o.frequency.value=freq;
+  g.gain.setValueAtTime(vol,AC.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001,AC.currentTime+dur);
+  o.start(); o.stop(AC.currentTime+dur);
+}
+function noiseSound(dur,vol) {
+  if(!AC) return; vol=vol||0.2;
+  let len=Math.floor(AC.sampleRate*dur),buf=AC.createBuffer(1,len,AC.sampleRate),d=buf.getChannelData(0);
+  for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*(1-i/len);
+  let s=AC.createBufferSource(),g=AC.createGain();
+  s.buffer=buf; g.gain.value=vol;
+  s.connect(g); g.connect(AC.destination); s.start();
+}
+function sndShoot()  { tone(180,"square",0.07,0.05); }
+function sndBoom()   { noiseSound(0.3,0.28); tone(60,"sine",0.3,0.18); }
+function sndScream() { tone(700,"sawtooth",0.6,0.08); tone(340,"sawtooth",0.6,0.05); }
+function sndHit()    { noiseSound(0.1,0.14); tone(120,"square",0.1,0.07); }
+function sndBeat()   { tone(55,"sine",0.12,0.18); setTimeout(function(){tone(45,"sine",0.1,0.14);},160); }
+function sndAmb()    { tone(28+Math.random()*22,"sine",2.5,0.04); }
+function sndDoor()   { for(let i=0;i<5;i++) setTimeout(function(){tone(200+i*80,"triangle",0.3,0.09);},i*80); }
+
+// ─────────────────────────────────────────────────
+//  DIALOGUE ENGINE
+// ─────────────────────────────────────────────────
+let DLG = { queue:[], idx:0, full:"", typed:"", done:false, cb:null, interval:null };
+
+function showDlg(lines, callback) {
+  DLG.queue = lines;
+  DLG.idx   = 0;
+  DLG.cb    = callback || null;
+  dlgEl.style.display = "block";
+  dlgLine(0);
+}
+
+function dlgLine(i) {
+  clearInterval(DLG.interval);
+  if (i >= DLG.queue.length) {
+    dlgEl.style.display = "none";
+    DLG.queue = [];
+    if (DLG.cb) { let f=DLG.cb; DLG.cb=null; f(); }
+    return;
+  }
+  let L = DLG.queue[i];
+  dlgSpk.textContent  = L.who;
+  dlgSpk.style.color  = L.col || "#ff4444";
+  DLG.full  = L.text;
+  DLG.typed = "";
+  DLG.done  = false;
+  dlgBod.textContent = "";
+  let ci = 0;
+  DLG.interval = setInterval(function(){
+    if (ci < DLG.full.length) {
+      DLG.typed += DLG.full[ci++];
+      dlgBod.textContent = DLG.typed;
+    } else {
+      clearInterval(DLG.interval);
+      DLG.done = true;
+    }
+  }, 26);
+}
+
+function tickDlg() {
+  if (!DLG.queue.length) return;
+  if (consumeJust("Space")) {
+    if (!DLG.done) {
+      clearInterval(DLG.interval);
+      DLG.typed = DLG.full;
+      dlgBod.textContent = DLG.full;
+      DLG.done = true;
+    } else {
+      DLG.idx++;
+      dlgLine(DLG.idx);
+    }
+  }
+}
+
+function dlgActive() { return DLG.queue.length > 0; }
+
+// ─────────────────────────────────────────────────
+//  HELPERS
+// ─────────────────────────────────────────────────
+function setWarn(t) { warnEl.textContent=t; warnTimer=220; }
+
+function addPart(x,y,col,n,sp) {
+  n=n||8; sp=sp||3;
+  for(let i=0;i<n;i++){
+    let a=Math.random()*Math.PI*2,s=Math.random()*sp+1;
+    particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:20+Math.random()*30,col});
+  }
+}
+function spawnFlower(x,y,n,sp){
+  sp=sp||3;
+  for(let i=0;i<n;i++){let a=(Math.PI*2/n)*i; bullets.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,k:"f"});}
+}
+function spawnSpiral(x,y,off){
+  off=off||0;
+  for(let i=0;i<8;i++){let a=(Math.PI*2/8)*i+off; bullets.push({x,y,vx:Math.cos(a)*4.5,vy:Math.sin(a)*4.5,k:"s"});}
+}
+function tickParts(){
+  for(let i=particles.length-1;i>=0;i--){
+    let p=particles[i]; p.x+=p.vx; p.y+=p.vy; p.vx*=0.91; p.vy*=0.91; p.life--;
+    if(p.life<=0) particles.splice(i,1);
+  }
+}
+
+function hurtPlayer(amt) {
+  health -= amt;
+  redFlash=50; shake=14;
+  addPart(player.x,player.y,"#ff0000",12,5);
+  blood.push({x:player.x+(Math.random()-.5)*50,y:player.y+(Math.random()-.5)*50,r:10+Math.random()*20,a:0.6});
+  sndHit();
+  if (health<=0) killPlayer();
+  else if (health<40) setWarn("CRITICAL HEALTH");
+}
+
+// ─────────────────────────────────────────────────
+//  END SCREEN
+// ─────────────────────────────────────────────────
+function showEndScreen(win) {
+  hudEl.style.display = "none";
+  warnEl.textContent = "";
+  dlgEl.style.display = "none";
+
+  if (win) {
+    endTitle.textContent = "ESCAPED";
+    endTitle.style.color = "#00cc44";
+    endSub.textContent = "YOU SURVIVED THE CHAMBER";
+    endSub.style.color = "#003311";
+    endMsg.innerHTML = "You made it out.<br>But something is still watching...";
+    endMsg.style.color = "#446644";
+    endBtn.style.color = "#00cc44";
+    endBtn.style.border = "2px solid #006622";
+    endBtn.style.boxShadow = "0 0 20px #00440080";
+    endBtn.onmouseover = function(){ this.style.background="#00cc44"; this.style.color="#000"; };
+    endBtn.onmouseout  = function(){ this.style.background="transparent"; this.style.color="#00cc44"; };
+  } else {
+    endTitle.textContent = "CONSUMED";
+    endTitle.style.color = "#cc0000";
+    endSub.textContent = "YOU DIED IN THE CHAMBER";
+    endSub.style.color = "#330000";
+    endMsg.innerHTML = "The ghost claimed another soul.<br>You cannot escape what lives in the dark.";
+    endMsg.style.color = "#554444";
+    endBtn.style.color = "#cc0000";
+    endBtn.style.border = "2px solid #660000";
+    endBtn.style.boxShadow = "0 0 20px #33000080";
+    endBtn.onmouseover = function(){ this.style.background="#cc0000"; this.style.color="#000"; };
+    endBtn.onmouseout  = function(){ this.style.background="transparent"; this.style.color="#cc0000"; };
+  }
+  endBtn.style.background = "transparent";
+  endScreen.style.display = "flex";
+}
+
+function restartGame() {
+  // Reset all state and re-initialize
+  endScreen.style.display = "none";
+  uiEl.classList.remove("hidden");
+
+  // Reset DLG
+  clearInterval(DLG.interval);
+  DLG.queue = []; DLG.idx = 0; DLG.full = ""; DLG.typed = ""; DLG.done = false; DLG.cb = null;
+  dlgEl.style.display = "none";
+
+  // Reset keys
+  keys = {}; justPressed = {};
+
+  state = "MENU";
+  // Restore the original main menu HTML
+  uiEl.innerHTML = `
+    <h1>THE SEALED GATE</h1>
+    <div class="subtitle">— SURVIVAL HORROR —</div>
+    <div class="story">
+      You entered Chamber 13 to retrieve the artifact.<br>
+      The others never came back.<br>
+      Something is sealed in here with you.<br><br>
+      <span style="color:#ff2200">Survive 90 seconds. Reach the exit.</span>
+    </div>
+    <div class="controls">
+      WASD / ARROWS — Move &nbsp;|&nbsp; SPACE — Sprint<br>
+      Press SPACE to skip dialogue lines.
+    </div>
+    <button class="btn" onclick="startGame()">ENTER THE CHAMBER</button>
+  `;
+
+  // Clear canvas
+  ctx.fillStyle = "#000";
+  ctx.fillRect(0, 0, 800, 600);
+
+  // Reset HUD
+  hudEl.style.display = "none";
+  warnEl.textContent = "";
+}
+
+function killPlayer() {
+  state = "DEAD";
+  // Stop dialogue, clear DLG state
+  clearInterval(DLG.interval);
+  DLG.queue = []; DLG.cb = null;
+  dlgEl.style.display = "none";
+  hudEl.style.display = "none";
+  warnEl.textContent = "";
+  // Show end screen immediately
+  showEndScreen(false);
+}
+
+// ─────────────────────────────────────────────────
+//  GAME FLOW FUNCTIONS
+// ─────────────────────────────────────────────────
+function startGame() {
+  initAC();
+  uiEl.classList.add("hidden");
+  state = "INTRO";
+  introDist = 0;
+  player     = {x:400,y:570,radius:9,speed:6};
+  bullets=[]; bombs=[]; particles=[]; blood=[]; tendrils=[];
+  requestAnimationFrame(loop);
+}
+
+function startTalking() {
+  state = "TALKING";
+  hudEl.style.display="flex";
+  showDlg([
+    {who:"YOU",         col:"#00ccff", text:"Hello? Is anyone in here?"},
+    {who:"???",         col:"#ff0044", text:"..."},
+    {who:"YOU",         col:"#00ccff", text:"Who's there? Show yourself!"},
+    {who:"THE GHOST",   col:"#ff0044", text:"You should not have come. This place belongs to me now."},
+    {who:"YOU",         col:"#00ccff", text:"What are you?! Stay away from me!"},
+    {who:"THE GHOST",   col:"#ff0044", text:"I was like you once. They left me here to rot. Now you will stay too."},
+    {who:"YOU",         col:"#00ccff", text:"There has to be another exit. I just need to survive this."},
+    {who:"THE GHOST",   col:"#ff0044", text:"Run all you like or die..."},
+  ], function(){
+    initPlay();
+  });
+}
+
+function initPlay() {
+  state = "PLAYING";
+  tank  = {x:400,y:330,angle:0};
+  ghost = {x:400,y:60,radius:28,free:false,speed:1.6,freeAt:1800,alpha:0.12,wail:0};
+  bullets=[]; bombs=[]; particles=[]; blood=[]; tendrils=[];
+  door  = {x:400,y:95,open:false,anim:0};
+  gameTime=0; stamina=300; health=100; sanity=100; phase=1;
+  shake=0; redFlash=0; warnTimer=0;
+  setWarn("SURVIVE 90 SECONDS");
+}
+
+function enterCorridor() {
+  state = "CORRIDOR";
+  hudEl.style.display="none";
+  bullets=[]; bombs=[]; particles=[];
+  corridorDist=0;
+  player.x=400; player.y=570;
+  ghostChaseX=400;
+  redFlash=0; shake=0;
+  showDlg([
+    {who:"THE GHOST",col:"#ff0044",text:"You found the passage. But it doesn't end here..."},
+    {who:"YOU",      col:"#00ccff",text:"I can see light ahead. KEEP RUNNING."},
+    {who:"THE GHOST",col:"#ff0044",text:"There is NO escape. Not from ME!"},
+  ], null);
+}
+
+function enterFinalRun() {
+  state = "FINALRUN";
+  finalTimer = 0;
+  showDlg([
+    {who:"YOU",       col:"#00ccff",text:"THE GATE — it's open! I can see daylight!"},
+    {who:"THE GHOST", col:"#ff0044",text:"NOOOO! YOU CANNOT LEAVE! YOU ARE MINE!"},
+    {who:"YOU",       col:"#00ccff",text:"I'm sorry for what happened to you. I really am."},
+    {who:"THE GHOST", col:"#ff0044",text:"...No one has ever said that before. ...Go."},
+  ], null);
+}
+
+function triggerWin() {
+  state = "WIN";
+  clearInterval(DLG.interval);
+  DLG.queue = []; DLG.cb = null;
+  dlgEl.style.display = "none";
+  hudEl.style.display = "none";
+  warnEl.textContent = "";
+  showEndScreen(true);
+}
+
+// ─────────────────────────────────────────────────
+//  UPDATE
+// ─────────────────────────────────────────────────
+function update() {
+  tickDlg();
+
+  if (state === "INTRO") {
+    if (keys["ArrowUp"]||keys["KeyW"]||keys["ArrowDown"]||keys["KeyS"]||keys["ArrowLeft"]||keys["KeyA"]||keys["ArrowRight"]||keys["KeyD"]) {
+      introDist += 7;
+      player.y = Math.max(100, 570 - introDist/7);
+      if (Math.random()<0.3) addPart(player.x+(Math.random()-.5)*16,player.y+12,"#1a1a1a",1,1);
+    }
+    if (introDist > 2100) startTalking();
+    tickParts();
+    return;
+  }
+
+  if (state === "TALKING") {
+    tickParts();
+    return;
+  }
+
+  if (state === "PLAYING") {
+    gameTime++;
+    let secs = Math.floor(gameTime/60);
+
+    if (secs>=30 && phase===1) {
+      phase=2; shake=20; sndScream(); setWarn("PHASE 2 — IT GROWS ANGRY");
+    }
+    if (secs>=60 && phase===2) {
+      phase=3; shake=30; sndScream(); ghost.speed=2.8; setWarn("PHASE 3 — DESPERATION");
+      if (!dlgActive()) showDlg([{who:"THE GHOST",col:"#ff0044",text:"You are STILL here?! I will tear this chamber apart!"}],null);
+    }
+
+    if (ghost.free) sanity -= 0.09;
+    if (health<50)  sanity -= 0.04;
+    sanity = Math.max(0,sanity);
+    if (gameTime%130===0 && sanity<60) sndBeat();
+    if (gameTime%320===0) sndAmb();
+
+    let sprinting = keys["Space"] && stamina>0;
+    let spd = sprinting ? player.speed*2.1 : player.speed;
+    if (sprinting) stamina-=1.1; else if(stamina<300) stamina+=0.55;
+    stamina=Math.max(0,Math.min(300,stamina));
+    let dx=0,dy=0;
+    if(keys["ArrowUp"]  ||keys["KeyW"]) dy=-1;
+    if(keys["ArrowDown"] ||keys["KeyS"]) dy=1;
+    if(keys["ArrowLeft"] ||keys["KeyA"]) dx=-1;
+    if(keys["ArrowRight"]||keys["KeyD"]) dx=1;
+    if(dx&&dy){dx*=0.707;dy*=0.707;}
+    player.x=Math.max(10,  Math.min(790, player.x+dx*spd));
+    player.y=Math.max(135, Math.min(590, player.y+dy*spd));
+
+    tank.angle = Math.atan2(player.y-tank.y, player.x-tank.x);
+
+    let rate = phase===3?45:phase===2?65:88;
+    if (gameTime%rate===0) {
+      let a=tank.angle;
+      bullets.push({x:tank.x,y:tank.y,vx:Math.cos(a)*5.5,vy:Math.sin(a)*5.5,k:"t"});
+      if(phase>=2){
+        bullets.push({x:tank.x,y:tank.y,vx:Math.cos(a+0.22)*5,vy:Math.sin(a+0.22)*5,k:"t"});
+        bullets.push({x:tank.x,y:tank.y,vx:Math.cos(a-0.22)*5,vy:Math.sin(a-0.22)*5,k:"t"});
+      }
+      sndShoot(); addPart(tank.x,tank.y,"#ff6600",5,3);
+    }
+    if(gameTime%155===0) spawnFlower(tank.x,tank.y,phase===3?20:12,phase>=2?4.2:3.2);
+    if(phase>=2&&gameTime%210===0) spawnSpiral(tank.x,tank.y,gameTime*0.012);
+    if(phase===3&&gameTime%100===0){
+      let a=tank.angle+(Math.random()-.5)*0.6;
+      bullets.push({x:tank.x,y:tank.y,vx:Math.cos(a)*6.5,vy:Math.sin(a)*6.5,k:"b",bo:3});
+    }
+
+    ghost.tentacleAngle = (ghost.tentacleAngle||0) + 0.04;
+    if (!ghost.free) {
+      ghost.alpha = 0.15+0.07*Math.sin(gameTime*0.05);
+      if (gameTime >= ghost.freeAt) {
+        ghost.free=true; shake=32; redFlash=90; sndScream(); setWarn("THE GHOST IS FREE");
+        if(!dlgActive()) showDlg([{who:"THE GHOST",col:"#ff0044",text:"Enough waiting. NOW I COME FOR YOU."}],null);
+      }
+    } else {
+      ghost.alpha = Math.min(0.95, ghost.alpha+0.006);
+      ghost.x = 400 + Math.sin(gameTime*0.018)*260;
+      ghost.y = 60  + Math.sin(gameTime*0.025)*28;
+      ghost.wail++;
+      if(ghost.wail>240){ghost.wail=0;sndScream();}
+
+      if(gameTime%40===0){
+        tendrils.push({x:ghost.x+(Math.random()-.5)*80, y:ghost.y+ghost.radius, life:80,maxLife:80, targetY:ghost.y+80+Math.random()*180, w:3+Math.random()*5});
+      }
+      tendrils.forEach(function(t){
+        if(t.life<20 && Math.abs(player.x-t.x)<20 && player.y<t.targetY+30) hurtPlayer(0.4);
+      });
+
+      let br = phase===3?75:95;
+      if(gameTime%br===0){
+        let cnt=phase===3?7:4;
+        for(let i=0;i<cnt;i++) bombs.push({x:20+Math.random()*760,y:135+Math.random()*420,timer:80,live:false,r:30+Math.random()*22});
+      }
+    }
+
+    for(let i=tendrils.length-1;i>=0;i--){tendrils[i].life--;if(tendrils[i].life<=0)tendrils.splice(i,1);}
+
+    for(let i=bullets.length-1;i>=0;i--){
+      let b=bullets[i];
+      b.x+=b.vx; b.y+=b.vy;
+      if(b.k==="b"){
+        if(b.x<8||b.x>792){b.vx*=-1;b.bo--;}
+        if(b.y<135||b.y>592){b.vy*=-1;b.bo--;}
+        if(b.bo<0){bullets.splice(i,1);continue;}
+      }
+      if(Math.hypot(b.x-player.x,b.y-player.y)<player.radius+4){
+        hurtPlayer(12); addPart(b.x,b.y,"#ffcc00",8,4); bullets.splice(i,1); continue;
+      }
+      if(b.x<-30||b.x>830||b.y<-30||b.y>630) bullets.splice(i,1);
+    }
+
+    for(let i=bombs.length-1;i>=0;i--){
+      let b=bombs[i]; b.timer--;
+      if(b.timer===0){b.live=true;sndBoom();shake=Math.max(shake,10);addPart(b.x,b.y,"#ff4400",18,6);}
+      if(b.live&&b.timer>-22&&Math.hypot(player.x-b.x,player.y-b.y)<b.r) hurtPlayer(18);
+      if(b.timer<-28) bombs.splice(i,1);
+    }
+
+    if (gameTime>=5400) {
+      if(!door.open){door.open=true; sndDoor(); setWarn("DOOR IS OPEN — GO THROUGH IT!");}
+      door.anim=Math.min(1,door.anim+0.025);
+      if(Math.hypot(player.x-door.x,player.y-door.y)<40){
+        enterCorridor(); return;
+      }
+    }
+
+    shake*=0.84; redFlash=Math.max(0,redFlash-1.5);
+    if(warnTimer>0){warnTimer--;if(warnTimer===0)warnEl.textContent="";}
+    tickParts();
+
+    document.getElementById("sbar").style.width=(stamina/300*100)+"%";
+    document.getElementById("hbar").style.width=Math.max(0,health)+"%";
+    document.getElementById("nbar").style.width=Math.max(0,sanity)+"%";
+    let ts=Math.floor(gameTime/60);
+    document.getElementById("timer-hud").textContent=Math.floor(ts/60)+":"+(ts%60<10?"0":"")+ts%60;
+    document.getElementById("phase-hud").textContent="PHASE "+phase;
+    return;
+  }
+
+  if (state === "CORRIDOR") {
+    if (keys["ArrowUp"]||keys["KeyW"]) {
+      corridorDist += 6;
+      player.y = Math.max(-40, 570-corridorDist/7);
+      if(Math.random()<0.2) addPart(player.x+(Math.random()-.5)*20,player.y+10,"#200000",1,1);
+    }
+    player.x = Math.max(350,Math.min(450,player.x));
+    ghostChaseX = 400+Math.sin(Date.now()*0.004)*30;
+    if(corridorDist>2600) { enterFinalRun(); return; }
+    tickParts();
+    return;
+  }
+
+  if (state === "FINALRUN") {
+    finalTimer++;
+    if(finalTimer>300) { triggerWin(); return; }
+    tickParts();
+    return;
+  }
+}
+
+// ─────────────────────────────────────────────────
+//  DRAW HELPERS
+// ─────────────────────────────────────────────────
+function drawCorridor(cx,hw) {
+  ctx.fillStyle="#000"; ctx.fillRect(0,0,cx-hw,600); ctx.fillRect(cx+hw,0,800-(cx+hw),600);
+  ctx.fillStyle="#090909"; ctx.fillRect(cx-hw,0,hw*2,600);
+  ctx.strokeStyle="rgba(20,20,20,0.9)"; ctx.lineWidth=1;
+  for(let y=0;y<600;y+=44){ctx.beginPath();ctx.moveTo(cx-hw,y);ctx.lineTo(cx+hw,y);ctx.stroke();}
+  for(let x=cx-hw;x<=cx+hw;x+=46){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,600);ctx.stroke();}
+  let tf=0.7+0.3*Math.sin(Date.now()*0.008);
+  [[cx-hw+6,290],[cx+hw-6,290]].forEach(function(tp){
+    let tg=ctx.createRadialGradient(tp[0],tp[1],0,tp[0],tp[1],65);
+    tg.addColorStop(0,"rgba(255,120,15,"+(0.18*tf)+")"); tg.addColorStop(1,"transparent");
+    ctx.fillStyle=tg; ctx.fillRect(tp[0]-65,tp[1]-65,130,130);
+  });
+}
+
+function drawPlayer() {
+  let pr=player.radius;
+  let plg=ctx.createRadialGradient(player.x,player.y,0,player.x,player.y,pr*3);
+  plg.addColorStop(0,"rgba(0,220,255,0.22)"); plg.addColorStop(1,"transparent");
+  ctx.fillStyle=plg; ctx.fillRect(player.x-pr*3,player.y-pr*3,pr*6,pr*6);
+  ctx.fillStyle="#00ccff"; ctx.beginPath(); ctx.arc(player.x,player.y,pr,0,6.28); ctx.fill();
+  ctx.fillStyle="rgba(255,255,255,0.35)"; ctx.beginPath(); ctx.arc(player.x-2,player.y-2,pr*0.4,0,6.28); ctx.fill();
+}
+
+function drawGhost(gx,gy,r,freeMode,alpha) {
+  ctx.save(); ctx.globalAlpha=alpha;
+  let t=Date.now()*0.001;
+
+  for(let ring=3;ring>0;ring--){
+    let rg=ctx.createRadialGradient(gx,gy,0,gx,gy,r*ring*1.5);
+    rg.addColorStop(0,freeMode?"rgba(180,0,40,"+(0.07/ring)+")":"rgba(80,80,180,"+(0.05/ring)+")");
+    rg.addColorStop(1,"transparent");
+    ctx.fillStyle=rg; ctx.beginPath(); ctx.arc(gx,gy,r*ring*1.5,0,6.28); ctx.fill();
+  }
+
+  ctx.fillStyle=freeMode?"rgba(220,0,60,0.88)":"rgba(130,130,220,0.5)";
+  ctx.beginPath();
+  let first=true;
+  for(let a=0;a<Math.PI*2;a+=0.12){
+    let wr=r+Math.sin(a*3+t*2)*9+Math.sin(a*5-t)*5;
+    let px=gx+Math.cos(a)*wr, py=gy+Math.sin(a)*wr*0.7;
+    first?(ctx.moveTo(px,py),first=false):ctx.lineTo(px,py);
+  }
+  ctx.closePath(); ctx.fill();
+
+  let numT=freeMode?14:7;
+  for(let i=0;i<numT;i++){
+    let ba=(Math.PI*2/numT)*i+t*0.35;
+    let bx=gx+Math.cos(ba)*r*0.85, by=gy+Math.sin(ba)*r*0.55;
+    if(by<gy) continue;
+    let len=45+Math.sin(t*1.5+i)*20;
+    ctx.strokeStyle=freeMode?"rgba(200,0,50,0.75)":"rgba(80,80,200,0.4)";
+    ctx.lineWidth=2.5+Math.sin(t+i)*1.5;
+    ctx.beginPath(); ctx.moveTo(bx,by);
+    ctx.bezierCurveTo(bx+Math.sin(t+i)*25,by+len*0.4,bx-Math.sin(t*0.7+i)*18,by+len*0.8,bx+Math.sin(t*1.2+i)*12,by+len);
+    ctx.stroke();
+  }
+
+  let ew=Math.sin(t*3)*1.5;
+  ctx.fillStyle="#000";
+  ctx.beginPath(); ctx.ellipse(gx-r*0.32,gy-r*0.08+ew,r*0.19,r*0.26,0,0,6.28); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(gx+r*0.32,gy-r*0.08+ew,r*0.19,r*0.26,0,0,6.28); ctx.fill();
+  if(freeMode){
+    ctx.fillStyle="rgba(255,0,0,0.95)";
+    ctx.beginPath(); ctx.arc(gx-r*0.32,gy-r*0.08+ew,r*0.08,0,6.28); ctx.fill();
+    ctx.beginPath(); ctx.arc(gx+r*0.32,gy-r*0.08+ew,r*0.08,0,6.28); ctx.fill();
+    ctx.fillStyle="rgba(255,180,180,0.6)";
+    ctx.beginPath(); ctx.arc(gx-r*0.29,gy-r*0.11+ew,r*0.03,0,6.28); ctx.fill();
+    ctx.beginPath(); ctx.arc(gx+r*0.35,gy-r*0.11+ew,r*0.03,0,6.28); ctx.fill();
+  }
+
+  let mopen=freeMode?0.38+Math.sin(t*5)*0.14:0.13+Math.sin(t*2)*0.04;
+  ctx.fillStyle="#000";
+  ctx.beginPath(); ctx.ellipse(gx,gy+r*0.3,r*0.36,r*mopen,0,0,6.28); ctx.fill();
+  if(freeMode){
+    ctx.fillStyle="rgba(210,190,190,0.85)";
+    for(let ti=-2;ti<=2;ti++){
+      ctx.beginPath(); ctx.rect(gx+ti*r*0.14-r*0.055,gy+r*0.3-r*mopen+2,r*0.09,r*mopen*0.55); ctx.fill();
+    }
+    ctx.fillStyle="rgba(0,0,0,0.5)";
+    ctx.beginPath(); ctx.ellipse(gx,gy+r*0.3+r*mopen,r*0.1,r*0.07,0,0,6.28); ctx.fill();
+  }
+
+  ctx.restore();
+}
+
+// ─────────────────────────────────────────────────
+//  DRAW
+// ─────────────────────────────────────────────────
+function draw() {
+  let sx=0,sy=0;
+  if(shake>0.5){sx=(Math.random()-.5)*shake;sy=(Math.random()-.5)*shake;}
+  ctx.save(); ctx.translate(sx,sy);
+  ctx.fillStyle="#000"; ctx.fillRect(-10,-10,820,620);
+
+  if(state==="INTRO")    drawStateIntro();
+  if(state==="TALKING")  drawStateTalking();
+  if(state==="PLAYING")  drawStatePlaying();
+  if(state==="CORRIDOR") drawStateCorridor();
+  if(state==="FINALRUN") drawStateFinalRun();
+  if(state==="DEAD")     drawStatePlaying();
+  if(state==="WIN")      drawStateFinalRun();
+
+  let vig=ctx.createRadialGradient(400,300,180,400,300,510);
+  vig.addColorStop(0,"rgba(0,0,0,0)"); vig.addColorStop(1,"rgba(0,0,0,0.85)");
+  ctx.fillStyle=vig; ctx.fillRect(-10,-10,820,620);
+
+  if((state==="PLAYING"||state==="CORRIDOR")&&sanity<70){
+    let inten=(70-sanity)/70;
+    ctx.fillStyle="rgba(0,0,0,"+(inten*0.05)+")";
+    for(let y=0;y<600;y+=3) ctx.fillRect(-10,y,820,1);
+    if(Math.random()<inten*0.14){ctx.globalAlpha=0.06;ctx.drawImage(canvas,Math.random()*8-4,0);ctx.globalAlpha=1;}
+  }
+
+  if(redFlash>0){ctx.fillStyle="rgba(170,0,0,"+(redFlash/180)+")";ctx.fillRect(-10,-10,820,620);}
+
+  ctx.restore();
+}
+
+function drawStateIntro() {
+  drawCorridor(400,52);
+  let doorY=50-introDist*0.04;
+  ctx.fillStyle="#140500"; ctx.fillRect(366,doorY,68,100);
+  ctx.strokeStyle="#0a0200"; ctx.lineWidth=2;
+  for(let i=0;i<5;i++){ctx.beginPath();ctx.moveTo(368+i*12,doorY);ctx.lineTo(368+i*12,doorY+100);ctx.stroke();}
+  ctx.beginPath();ctx.moveTo(366,doorY+35);ctx.lineTo(434,doorY+35);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(366,doorY+68);ctx.lineTo(434,doorY+68);ctx.stroke();
+  let dg=ctx.createRadialGradient(400,doorY+50,0,400,doorY+50,80);
+  dg.addColorStop(0,"rgba(255,40,0,"+(0.1+0.08*Math.sin(Date.now()*0.003))+")"); dg.addColorStop(1,"transparent");
+  ctx.fillStyle=dg; ctx.fillRect(340,doorY-30,120,160);
+  ctx.globalAlpha=0.5;
+  particles.forEach(function(p){ctx.fillStyle="rgba(80,60,40,"+(p.life/50)+")";ctx.beginPath();ctx.arc(p.x,p.y,2,0,6.28);ctx.fill();});
+  ctx.globalAlpha=1;
+  drawPlayer();
+  ctx.fillStyle="rgba(100,55,35,"+(0.5+0.5*Math.sin(Date.now()*0.003))+")";
+  ctx.font="18px VT323"; ctx.textAlign="center";
+  ctx.fillText("ANY KEY TO WALK TO THE CHAMBER",400,577);
+}
+
+function drawStateTalking() {
+  drawCorridor(400,52);
+  ctx.save(); ctx.globalAlpha=0.4+0.15*Math.sin(Date.now()*0.003);
+  drawGhost(400,80,32,false,1);
+  ctx.restore();
+  drawPlayer();
+}
+
+function drawStatePlaying() {
+  for(let tx=0;tx<800;tx+=50){
+    for(let ty=130;ty<600;ty+=50){
+      let s=9+(tx+ty)%3; if(sanity<30)s+=Math.random()*5|0;
+      ctx.fillStyle="rgb("+s+","+s+","+s+")"; ctx.fillRect(tx,ty,49,49);
+    }
+  }
+  ctx.strokeStyle="#141414"; ctx.lineWidth=1;
+  for(let x=0;x<=800;x+=50){ctx.beginPath();ctx.moveTo(x,130);ctx.lineTo(x,600);ctx.stroke();}
+  for(let y=130;y<=600;y+=50){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(800,y);ctx.stroke();}
+
+  let topG=ctx.createLinearGradient(0,0,0,130);
+  topG.addColorStop(0,"#060000"); topG.addColorStop(1,"rgba(6,0,0,0)");
+  ctx.fillStyle=topG; ctx.fillRect(0,0,800,130);
+
+  ctx.strokeStyle="rgba(110,0,0,0.55)"; ctx.lineWidth=2;
+  ctx.setLineDash([8,5]); ctx.beginPath();ctx.moveTo(0,130);ctx.lineTo(800,130);ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle="rgba(110,0,0,0.4)"; ctx.font="12px VT323"; ctx.textAlign="left";
+  ctx.fillText("⚠ GHOST TERRITORY",6,127);
+
+  blood.forEach(function(b){ctx.fillStyle="rgba(110,0,0,"+b.a+")";ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,6.28);ctx.fill();b.a*=0.998;});
+
+  if(!door.open){
+    let prog=Math.min(1,gameTime/5400);
+    ctx.fillStyle="#0a0a0a"; ctx.fillRect(0,0,800,5);
+    ctx.fillStyle=prog<0.5?"#00cc44":prog<0.8?"#ff8800":"#ff1100";
+    ctx.fillRect(0,0,800*prog,5);
+    ctx.fillStyle="#333"; ctx.font="12px VT323"; ctx.textAlign="right";
+    ctx.fillText(Math.ceil((5400-gameTime)/60)+"s",796,17);
+  }
+
+  if(door.open){
+    let da=door.anim;
+    let dg=ctx.createRadialGradient(door.x,door.y,0,door.x,door.y,70*da);
+    dg.addColorStop(0,"rgba(0,255,80,"+(0.7*da)+")"); dg.addColorStop(1,"transparent");
+    ctx.fillStyle=dg; ctx.fillRect(door.x-80,door.y-20,160,150);
+    ctx.fillStyle="#001500"; ctx.fillRect(door.x-22,door.y,44,55);
+    ctx.fillStyle="rgba(0,255,80,"+da+")"; ctx.font="17px VT323"; ctx.textAlign="center";
+    ctx.fillText("EXIT — GO THROUGH!",door.x,door.y-14);
+  }
+
+  if(!ghost.free){
+    let gx=ghost.x||400, gy=ghost.y||60;
+    ctx.strokeStyle="rgba(60,60,60,"+(ghost.alpha*3)+")"; ctx.lineWidth=3;
+    for(let i=0;i<9;i++){ctx.beginPath();ctx.moveTo(gx-40+i*10,gy-52);ctx.lineTo(gx-40+i*10,gy+52);ctx.stroke();}
+    ctx.beginPath();ctx.moveTo(gx-42,gy-22);ctx.lineTo(gx+42,gy-22);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(gx-42,gy+22);ctx.lineTo(gx+42,gy+22);ctx.stroke();
+    let tl=Math.max(0,Math.ceil((ghost.freeAt-gameTime)/60));
+    ctx.fillStyle="rgba(200,40,40,"+(0.5+0.5*Math.sin(gameTime*0.1))+")";
+    ctx.font="14px VT323"; ctx.textAlign="center";
+    ctx.fillText("BREAKS FREE IN "+tl+"s",gx,gy-58);
+  }
+  drawGhost(ghost.x||400, ghost.y||60, ghost.radius, ghost.free, ghost.alpha);
+
+  tendrils.forEach(function(t){
+    let prog=t.life/t.maxLife;
+    ctx.strokeStyle="rgba(200,0,50,"+(prog*0.7)+")"; ctx.lineWidth=t.w*prog;
+    ctx.beginPath(); ctx.moveTo(t.x,(ghost.y||60)+ghost.radius);
+    let cp=t.x+Math.sin(Date.now()*0.005+t.x)*30;
+    ctx.bezierCurveTo(cp,(ghost.y||60)+t.targetY*0.3,t.x-cp*0.3,(ghost.y||60)+t.targetY*0.7,t.x,t.targetY);
+    ctx.stroke();
+  });
+
+  ctx.save(); ctx.translate(tank.x,tank.y);
+  ctx.fillStyle="rgba(0,0,0,0.35)"; ctx.fillRect(-24,16,48,10);
+  let tc=phase===3?"#661100":phase===2?"#442200":"#333";
+  ctx.fillStyle=tc; ctx.fillRect(-22,-18,44,36);
+  ctx.fillStyle=phase===3?"#882200":phase===2?"#553300":"#444"; ctx.fillRect(-16,-13,32,26);
+  ctx.rotate(tank.angle);
+  ctx.fillStyle="#555"; ctx.beginPath();ctx.arc(0,0,13,0,6.28);ctx.fill();
+  ctx.fillStyle="#666"; ctx.fillRect(4,-4,24,8);
+  let bg=ctx.createRadialGradient(28,0,0,28,0,12);
+  bg.addColorStop(0,"rgba(255,100,0,"+(0.3+0.2*Math.sin(gameTime*0.2))+")"); bg.addColorStop(1,"transparent");
+  ctx.fillStyle=bg; ctx.fillRect(16,-12,24,24);
+  ctx.restore();
+
+  bombs.forEach(function(b){
+    let prog=1-Math.max(0,b.timer)/80;
+    ctx.strokeStyle="rgba(255,"+(Math.floor(200*(1-prog)))+",0,"+(0.4+0.4*Math.sin(gameTime*0.3))+")";
+    ctx.lineWidth=2; ctx.beginPath();ctx.arc(b.x,b.y,b.r*(0.6+0.4*prog),0,6.28);ctx.stroke();
+    ctx.fillStyle="rgba(255,60,0,0.9)"; ctx.beginPath();ctx.arc(b.x,b.y,5,0,6.28);ctx.fill();
+    if(b.live){
+      let eg=ctx.createRadialGradient(b.x,b.y,0,b.x,b.y,b.r);
+      eg.addColorStop(0,"rgba(255,200,0,0.8)"); eg.addColorStop(0.4,"rgba(255,80,0,0.5)"); eg.addColorStop(1,"transparent");
+      ctx.fillStyle=eg; ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,6.28);ctx.fill();
+    }
+  });
+
+  bullets.forEach(function(b){
+    let col=b.k==="t"?"#ffee00":b.k==="b"?"#ff00ff":"#ff44ff";
+    let gr=b.k==="b"?10:7;
+    let glw=ctx.createRadialGradient(b.x,b.y,0,b.x,b.y,gr);
+    glw.addColorStop(0,col); glw.addColorStop(0.5,col+"88"); glw.addColorStop(1,"transparent");
+    ctx.fillStyle=glw; ctx.beginPath();ctx.arc(b.x,b.y,gr,0,6.28);ctx.fill();
+    ctx.fillStyle=col; ctx.beginPath();ctx.arc(b.x,b.y,3.5,0,6.28);ctx.fill();
+  });
+
+  particles.forEach(function(p){ctx.globalAlpha=Math.min(1,p.life/50);ctx.fillStyle=p.col;ctx.beginPath();ctx.arc(p.x,p.y,3,0,6.28);ctx.fill();});
+  ctx.globalAlpha=1;
+
+  drawPlayer();
+
+  if(phase>=2){
+    ctx.fillStyle="rgba("+(phase===3?145:65)+",0,0,"+(0.04+0.02*Math.sin(gameTime*0.08))+")";
+    ctx.fillRect(0,0,800,600);
+  }
+  ctx.textAlign="left";
+}
+
+function drawStateCorridor() {
+  drawCorridor(400,55);
+
+  let prog=Math.min(1,corridorDist/2600);
+  let lg=ctx.createRadialGradient(400,0,0,400,0,220*prog);
+  lg.addColorStop(0,"rgba(180,255,180,"+(prog*0.55)+")"); lg.addColorStop(1,"transparent");
+  ctx.fillStyle=lg; ctx.fillRect(200,-60,400,280);
+
+  let chAlpha=Math.min(0.92,corridorDist/700);
+  let chY=player.y+100+Math.sin(Date.now()*0.005)*14;
+  drawGhost(ghostChaseX, chY, 42+Math.sin(Date.now()*0.003)*8, true, chAlpha);
+
+  ctx.globalAlpha=0.6;
+  particles.forEach(function(p){ctx.fillStyle="rgba(120,0,0,"+(p.life/50)+")";ctx.beginPath();ctx.arc(p.x,p.y,2,0,6.28);ctx.fill();});
+  ctx.globalAlpha=1;
+
+  drawPlayer();
+
+  ctx.fillStyle="rgba(0,200,80,"+(0.4+0.3*Math.sin(Date.now()*0.006))+")";
+  ctx.font="18px VT323"; ctx.textAlign="center";
+  ctx.fillText("HOLD W / UP ARROW — KEEP RUNNING",400,562);
+
+  let pb=Math.min(1,corridorDist/2600);
+  ctx.fillStyle="#001100"; ctx.fillRect(100,578,600,8);
+  ctx.fillStyle="#00cc44"; ctx.fillRect(100,578,600*pb,8);
+}
+
+function drawStateFinalRun() {
+  ctx.fillStyle="#000"; ctx.fillRect(0,0,800,600);
+  let bright=Math.min(1,finalTimer/180);
+  let wg=ctx.createRadialGradient(400,0,0,400,0,500);
+  wg.addColorStop(0,"rgba(200,255,200,"+bright+")"); wg.addColorStop(1,"transparent");
+  ctx.fillStyle=wg; ctx.fillRect(0,0,800,600);
+  ctx.save(); ctx.globalAlpha=Math.max(0,0.7-finalTimer/200);
+  drawGhost(400,450,55,true,1);
+  ctx.restore();
+  drawPlayer();
+}
+
+// ─────────────────────────────────────────────────
+//  MAIN LOOP
+// ─────────────────────────────────────────────────
+function loop() {
+  update();
+  draw();
+  for(let k in justPressed) if(justPressed[k]===false) delete justPressed[k];
+  if(state!=="MENU") requestAnimationFrame(loop);
+}
+</script>
+</body>
+</html>
